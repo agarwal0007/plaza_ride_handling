@@ -1,0 +1,107 @@
+package com.ridehailing.pricing;
+
+import com.ridehailing.discount.PercentageDiscount;
+import com.ridehailing.model.CarType;
+import com.ridehailing.model.FareBreakdown;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class PricingEngineTest {
+
+    private PricingEngine pricingEngine;
+
+    @BeforeEach
+    void setUp() {
+        pricingEngine = new PricingEngine(new RateCardProvider());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "HATCHBACK, 2.0, 2000",
+            "HATCHBACK, 5.0, 4400",
+            "HATCHBACK, 7.0, 5400",
+            "SEDAN, 2.0, 2400",
+            "SEDAN, 5.0, 5400",
+            "SEDAN, 7.0, 6800"
+    })
+    void tieredFareAtExactBoundaries(CarType carType, double distanceKm, long expectedTieredFare) {
+        FareBreakdown breakdown = pricingEngine.price(distanceKm, carType, null);
+        assertEquals(expectedTieredFare, breakdown.tieredFare());
+    }
+
+    @Test
+    void sedanSevenKmHitsItsMinimumFareEvenThoughHatchbackDoesNotAtTheSameDistance() {
+        // SEDAN's tiered fare at 7km (6800) is below SEDAN's own minimum fare (7000);
+        // HATCHBACK's tiered fare at 7km (5400) already clears its minimum (5000).
+        FareBreakdown sedan = pricingEngine.price(7.0, CarType.SEDAN, null);
+        assertEquals(200, sedan.minimumFareAdjustment());
+        assertEquals(7000, sedan.total());
+
+        FareBreakdown hatchback = pricingEngine.price(7.0, CarType.HATCHBACK, null);
+        assertEquals(0, hatchback.minimumFareAdjustment());
+        assertEquals(5400, hatchback.total());
+    }
+
+    @Test
+    void fractionalDistanceIsProRatedWithinATier() {
+        // 2.5km hatchback: 2km at tier 1 (2000) + 0.5km at tier 2 (400) = 2400.
+        FareBreakdown breakdown = pricingEngine.price(2.5, CarType.HATCHBACK, null);
+        assertEquals(2400, breakdown.tieredFare());
+    }
+
+    @Test
+    void shortRideHitsTheMinimumFare() {
+        // 1km hatchback: tiered fare is 1000, but the 5000 minimum fare wins.
+        FareBreakdown breakdown = pricingEngine.price(1.0, CarType.HATCHBACK, null);
+        assertEquals(1000, breakdown.tieredFare());
+        assertEquals(4000, breakdown.minimumFareAdjustment());
+        assertEquals(5000, breakdown.total());
+    }
+
+    @Test
+    void sameDistanceCostsMoreInSedanThanHatchback() {
+        FareBreakdown hatchback = pricingEngine.price(2.0, CarType.HATCHBACK, null);
+        FareBreakdown sedan = pricingEngine.price(2.0, CarType.SEDAN, null);
+        assertTrue(sedan.tieredFare() > hatchback.tieredFare());
+    }
+
+    @Test
+    void percentageCouponDiscountsTheFare() {
+        FareBreakdown breakdown = pricingEngine.price(7.0, CarType.HATCHBACK, new PercentageDiscount(10, 100_000));
+        assertEquals(5400, breakdown.tieredFare());
+        assertEquals(540, breakdown.discount());
+        assertEquals(4860, breakdown.total());
+    }
+
+    @Test
+    void percentageCouponIsCappedAtItsMax() {
+        // 50% of 5400 would be 2700, but the cap is 1000.
+        FareBreakdown breakdown = pricingEngine.price(7.0, CarType.HATCHBACK, new PercentageDiscount(50, 1000));
+        assertEquals(1000, breakdown.discount());
+        assertEquals(4400, breakdown.total());
+    }
+
+    @Test
+    void couponLargerThanFareFloorsTotalAtZero() {
+        // 150% of the 5000 fare is 7500 - more than the fare itself. Total floors at 0
+        // instead of going negative; the discount field still shows the full computed
+        // amount so it's clear why total hit the floor.
+        FareBreakdown breakdown = pricingEngine.price(1.0, CarType.HATCHBACK, new PercentageDiscount(150, 100_000));
+        assertEquals(7500, breakdown.discount());
+        assertEquals(0, breakdown.total());
+    }
+
+    @Test
+    void couponIsAppliedAfterTheMinimumFareFloorNotBeforeIt() {
+        // Tiered fare for 1km hatchback is 1000, floored up to the 5000 minimum. A 10%
+        // coupon should discount 10% of 5000 (500), not 10% of the raw 1000 (100).
+        FareBreakdown breakdown = pricingEngine.price(1.0, CarType.HATCHBACK, new PercentageDiscount(10, 100_000));
+        assertEquals(500, breakdown.discount());
+        assertEquals(4500, breakdown.total());
+    }
+}
