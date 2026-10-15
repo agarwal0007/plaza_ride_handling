@@ -8,6 +8,9 @@ import com.ridehailing.model.Location;
 import com.ridehailing.repo.DriverRepository;
 
 public class DriverService {
+    /** Used when no rating is given at registration (decision: rating defaults to 5.0). */
+    public static final double DEFAULT_RATING = 5.0;
+
     private final DriverRepository driverRepository;
 
     public DriverService(DriverRepository driverRepository) {
@@ -15,8 +18,13 @@ public class DriverService {
     }
 
     public Driver registerDriver(String driverId, String name, CarType carType, String plate, double x, double y) {
+        return registerDriver(driverId, name, carType, plate, x, y, DEFAULT_RATING);
+    }
+
+    public Driver registerDriver(String driverId, String name, CarType carType, String plate,
+                                  double x, double y, double rating) {
         Cab cab = new Cab(carType, plate, new Location(x, y));
-        Driver driver = new Driver(driverId, name, cab);
+        Driver driver = new Driver(driverId, name, cab, rating);
         driverRepository.save(driver);
         return driver;
     }

@@ -1,6 +1,8 @@
 package com.ridehailing.cli;
 
 import com.ridehailing.discount.DiscountStrategyFactory;
+import com.ridehailing.matching.DriverMatchingStrategy;
+import com.ridehailing.matching.HighestRatedStrategy;
 import com.ridehailing.matching.NearestDriverStrategy;
 import com.ridehailing.pricing.PricingEngine;
 import com.ridehailing.pricing.RateCardProvider;
@@ -32,6 +34,15 @@ public class Main {
     private static final double DEFAULT_RADIUS_KM = 5.0;
 
     public static void main(String[] args) throws IOException {
+        DriverMatchingStrategy matchingStrategy;
+        try {
+            matchingStrategy = resolveMatchingStrategy();
+        } catch (IllegalArgumentException e) {
+            System.err.println("ERROR: " + e.getMessage());
+            System.exit(1);
+            return;
+        }
+
         UserRepository userRepository = new InMemoryUserRepository();
         DriverRepository driverRepository = new InMemoryDriverRepository();
         RideRepository rideRepository = new InMemoryRideRepository();
@@ -42,7 +53,6 @@ public class Main {
         CouponService couponService = new CouponService(couponRepository);
         DiscountStrategyFactory discountStrategyFactory = new DiscountStrategyFactory();
         PricingEngine pricingEngine = new PricingEngine(new RateCardProvider());
-        NearestDriverStrategy matchingStrategy = new NearestDriverStrategy();
         RideService rideService = new RideService(userRepository, driverRepository, rideRepository,
                 couponService, pricingEngine, matchingStrategy, DEFAULT_RADIUS_KM);
 
@@ -60,6 +70,25 @@ public class Main {
         registry.register("exit", new ExitCommand());
 
         runRepl(registry);
+    }
+
+    /**
+     * Picks the driver-matching strategy from -Dmatching=nearest|rated (default
+     * nearest). An unrecognised value is a startup configuration error, not a runtime
+     * one - it's reported and the process exits before the REPL ever starts, rather
+     * than falling back to a default silently.
+     */
+    private static DriverMatchingStrategy resolveMatchingStrategy() {
+        String matching = System.getProperty("matching", "nearest");
+        switch (matching.toLowerCase()) {
+            case "nearest":
+                return new NearestDriverStrategy();
+            case "rated":
+                return new HighestRatedStrategy();
+            default:
+                throw new IllegalArgumentException(
+                        "Invalid -Dmatching value: '" + matching + "' (expected 'nearest' or 'rated')");
+        }
     }
 
     private static void runRepl(CommandRegistry registry) throws IOException {

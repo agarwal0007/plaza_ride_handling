@@ -1,5 +1,6 @@
 package com.ridehailing.model;
 
+import com.ridehailing.exception.DomainException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -11,12 +12,17 @@ public class Driver {
     private final String driverId;
     private final String name;
     private final Cab cab;
+    private final double rating;
     private final AtomicReference<DriverStatus> status;
 
-    public Driver(String driverId, String name, Cab cab) {
+    public Driver(String driverId, String name, Cab cab, double rating) {
+        if (rating < 1.0 || rating > 5.0) {
+            throw new DomainException("Driver rating must be between 1.0 and 5.0, got: " + rating);
+        }
         this.driverId = driverId;
         this.name = name;
         this.cab = cab;
+        this.rating = rating;
         this.status = new AtomicReference<>(DriverStatus.AVAILABLE);
     }
 
@@ -30,6 +36,10 @@ public class Driver {
 
     public Cab getCab() {
         return cab;
+    }
+
+    public double getRating() {
+        return rating;
     }
 
     public DriverStatus getStatus() {

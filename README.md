@@ -89,6 +89,18 @@ they come up in later phases.)
 - The matching radius (5 units) is fixed once, in `Main`, when everything is wired
   together. There's no command to change it at runtime, since none was specified.
 
+**From Phase 10 (highest-rated matching):**
+- A driver's rating defaults to 5.0 when `add_driver` omits it - the same way the
+  booking radius has one fixed default - rather than requiring every registration to
+  specify one.
+- The valid range (1.0-5.0) is inclusive on both ends, and is enforced in `Driver`'s
+  constructor itself rather than in `DriverService`: an invalid rating can't produce a
+  `Driver` object at all, the same fail-fast pattern `Ride.complete()` already uses
+  for its own status invariant.
+- An unrecognised `-Dmatching` value is treated as a startup configuration error, not
+  a runtime one: it's reported and the process exits before the REPL starts, rather
+  than silently falling back to `nearest`.
+
 ## Design & trade-offs
 
 **Where the seams are, and why.** Three interfaces exist specifically so a whole
@@ -100,7 +112,11 @@ category of future change is a new class, not a rewrite:
 - `DriverMatchingStrategy` is the only thing that knows how a driver gets picked.
   `RideService` asks it for candidates and claims the first one that's still
   available - it has no idea what "nearest" means, or that there even is a distance
-  calculation involved.
+  calculation involved. Two implementations exist (`NearestDriverStrategy`,
+  `HighestRatedStrategy`), and `Main` picks between them at startup from
+  `-Dmatching=nearest|rated` (default `nearest`). Switching which one is active - or
+  adding a third - only ever touches `Main`; `RideService` is passed whichever
+  `DriverMatchingStrategy` it gets and has no idea a choice was even made.
 - `DiscountStrategy` is the only thing that knows how a coupon's discount is computed.
   Everything else - `Coupon`, `PricingEngine`, `Ride` - just holds or calls one.
 
