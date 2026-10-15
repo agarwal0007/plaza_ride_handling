@@ -267,4 +267,4 @@ pickup/drop points - deleting the coupon later is bookkeeping, not a price chang
 
 ## How I used AI
 
-TODO
+The system design and design decisions made by me and all manual and scenario testing as prompt done by me AI did full code part 
