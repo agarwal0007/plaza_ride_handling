@@ -49,7 +49,15 @@ book_ride r4 u2 SEDAN 300 350 301 350
 book_ride r5 u2 SEDAN 300 300 301 300 NOPE
 
 # ===================================================================
-# Scenario 6: coupon with a cap - a 50% coupon on a Rs 54 fare would
+# Scenario 6: unknown coupon TYPE - add_coupon now parses
+# <code> <TYPE> <args...> through DiscountStrategyFactory. FLAT isn't
+# a registered type (only PERCENT is), so adding it fails and no
+# coupon is created - but the CLI doesn't crash
+# ===================================================================
+add_coupon BADTYPE FLAT 25
+
+# ===================================================================
+# Scenario 7: coupon with a cap - a 50% coupon on a Rs 54 fare would
 # be Rs 27, but this coupon is capped at Rs 10, so only Rs 10 is
 # actually discounted
 # ===================================================================
@@ -59,7 +67,7 @@ book_ride r6 u1 HATCHBACK 400 400 407 400 CAPPED
 end_ride r6
 
 # ===================================================================
-# Scenario 7: histories - one ride is deliberately left ONGOING so
+# Scenario 8: histories - one ride is deliberately left ONGOING so
 # both history buckets have something to show
 # ===================================================================
 add_driver d6 Henry SEDAN KA06KL6666 500 500

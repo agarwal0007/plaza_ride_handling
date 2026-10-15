@@ -1,5 +1,6 @@
 package com.ridehailing.cli;
 
+import com.ridehailing.discount.DiscountStrategyFactory;
 import com.ridehailing.matching.NearestDriverStrategy;
 import com.ridehailing.pricing.PricingEngine;
 import com.ridehailing.pricing.RateCardProvider;
@@ -39,6 +40,7 @@ public class Main {
         UserService userService = new UserService(userRepository);
         DriverService driverService = new DriverService(driverRepository);
         CouponService couponService = new CouponService(couponRepository);
+        DiscountStrategyFactory discountStrategyFactory = new DiscountStrategyFactory();
         PricingEngine pricingEngine = new PricingEngine(new RateCardProvider());
         NearestDriverStrategy matchingStrategy = new NearestDriverStrategy();
         RideService rideService = new RideService(userRepository, driverRepository, rideRepository,
@@ -48,7 +50,7 @@ public class Main {
         registry.register("add_user", new AddUserCommand(userService));
         registry.register("add_driver", new AddDriverCommand(driverService));
         registry.register("update_location", new UpdateLocationCommand(driverService));
-        registry.register("add_coupon", new AddCouponCommand(couponService));
+        registry.register("add_coupon", new AddCouponCommand(couponService, discountStrategyFactory));
         registry.register("delete_coupon", new DeleteCouponCommand(couponService));
         registry.register("book_ride", new BookRideCommand(rideService));
         registry.register("end_ride", new EndRideCommand(rideService));

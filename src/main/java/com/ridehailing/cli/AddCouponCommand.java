@@ -1,28 +1,28 @@
 package com.ridehailing.cli;
 
-import com.ridehailing.discount.PercentageDiscount;
-import com.ridehailing.exception.DomainException;
+import com.ridehailing.discount.DiscountStrategy;
+import com.ridehailing.discount.DiscountStrategyFactory;
 import com.ridehailing.service.CouponService;
+import java.util.Arrays;
 
-/** add_coupon <code> PERCENT <percent> <maxCapRupees> */
+/** add_coupon <code> <TYPE> <args...> */
 public class AddCouponCommand implements Command {
     private final CouponService couponService;
+    private final DiscountStrategyFactory discountStrategyFactory;
 
-    public AddCouponCommand(CouponService couponService) {
+    public AddCouponCommand(CouponService couponService, DiscountStrategyFactory discountStrategyFactory) {
         this.couponService = couponService;
+        this.discountStrategyFactory = discountStrategyFactory;
     }
 
     @Override
     public void execute(String[] args) {
         String code = args[0];
         String type = args[1];
-        if (!type.equalsIgnoreCase("PERCENT")) {
-            throw new DomainException("Unknown coupon type: " + type + " (only PERCENT is supported)");
-        }
-        int percent = Integer.parseInt(args[2]);
-        long maxCapPaise = Math.round(Double.parseDouble(args[3]) * 100);
+        String[] typeArgs = Arrays.copyOfRange(args, 2, args.length);
 
-        couponService.addCoupon(code, new PercentageDiscount(percent, maxCapPaise));
-        System.out.println("Added coupon " + code + ": " + percent + "% off, capped at " + Money.format(maxCapPaise));
+        DiscountStrategy discount = discountStrategyFactory.create(type, typeArgs);
+        couponService.addCoupon(code, discount);
+        System.out.println("Added coupon " + code + " (" + type.toUpperCase() + ")");
     }
 }
