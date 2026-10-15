@@ -91,11 +91,71 @@ they come up in later phases.)
 
 ## Design & trade-offs
 
-(Added in Phase 6.)
+**Where the seams are, and why.** Three interfaces exist specifically so a whole
+category of future change is a new class, not a rewrite:
+- `PricingEngine` (concrete, but driven entirely by `RateCardProvider` data) is the
+  only thing that knows how a fare is computed. `RideService` calls it with a distance
+  and a car type and gets a `FareBreakdown` back - it has no idea what a "tier" or a
+  "minimum fare" is.
+- `DriverMatchingStrategy` is the only thing that knows how a driver gets picked.
+  `RideService` asks it for candidates and claims the first one that's still
+  available - it has no idea what "nearest" means, or that there even is a distance
+  calculation involved.
+- `DiscountStrategy` is the only thing that knows how a coupon's discount is computed.
+  Everything else - `Coupon`, `PricingEngine`, `Ride` - just holds or calls one.
+
+The point of all three is the same: `RideService` is a *coordinator*. It decides
+*when* to price a ride, match a driver, or apply a discount, and in what order, but
+never *how*. That split is what makes the "what I'd do with more time" list below
+mostly additive - a new strategy or a new rate, not a change to `RideService` itself.
+
+**Why Euclidean distance.** It's the simplest honest distance between two grid points,
+and the spec frames locations as `(x, y)` coordinates, not addresses on a road
+network. A real product would need actual road distance (see below), but that's a
+different, heavier problem (routing, not geometry) and nothing in this exercise asked
+for it.
+
+**Why paise, as a `long`, everywhere except the CLI.** Floating-point money is a
+classic, well-known source of silent drift - `0.1 + 0.2 != 0.3` in a double, and that
+kind of error compounding across tiered-fare math, discounts, and running totals is
+exactly the sort of bug that's invisible until an audit. Integers don't have that
+problem. The one place a fractional rupee amount is unavoidable is the tiered-fare
+math itself, where a fractional km has to multiply an integer rate - `PricingEngine`
+rounds that product to the nearest paisa *per tier*, immediately, rather than carrying
+a fractional value through further arithmetic. Everywhere else, money is exact integer
+addition and subtraction. The CLI's `Money.format` is the only line of code in the
+whole project that turns paise into a decimal string, and that's deliberate: it's a
+display concern, not a domain one.
+
+**Why a coupon is validated at booking and locked onto the ride, not re-validated at
+the end.** The alternative - checking the coupon code again when the ride ends - would
+mean a ride's price could change depending on something that happened *during* the
+ride (someone deleting the coupon), which is a strange thing for a fare to depend on.
+Locking the actual `DiscountStrategy` object onto the `Ride` at booking time means the
+ride's price is fully determined the moment it's booked, same as the car type and the
+pickup/drop points - deleting the coupon later is bookkeeping, not a price change.
 
 ## What I'd do with more time
 
-(Added in Phase 6.)
+- **Surge pricing**, as an extra multiplier step in `PricingEngine` between the
+  tiered-fare calculation and the minimum-fare floor - it composes with the existing
+  "tiered fare -> floor -> discount" pipeline rather than replacing any of it.
+- **`HighestRatedStrategy`**, a second `DriverMatchingStrategy` that ranks candidates
+  by driver rating instead of distance - this would need a rating field on `Driver`
+  that doesn't exist yet.
+- **Cancellation fees** - a ride state between "booked" and "ongoing" that can be
+  cancelled for a small charge, instead of today's model where a ride is ongoing from
+  the moment a driver is claimed.
+- **Haversine distance** instead of Euclidean, once locations are real latitude and
+  longitude rather than an abstract grid - `Location.distanceTo` is the only method
+  that would need to change.
+- **A spatial index** (e.g. a grid or a k-d tree) instead of `NearestDriverStrategy`
+  scanning every driver on every booking. Fine at this scale; wouldn't be at
+  city-wide driver counts.
+- **Persistence** - swap the `InMemory*Repository` implementations for ones backed by
+  a real database. Every service depends on the repository *interfaces*, never the
+  in-memory classes directly, so this is the one item here that's already fully
+  prepared for by the existing seams rather than needing a new one.
 
 ## How I used AI
 
