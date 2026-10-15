@@ -3,12 +3,15 @@ package com.ridehailing.pricing;
 import com.ridehailing.discount.PercentageDiscount;
 import com.ridehailing.model.CarType;
 import com.ridehailing.model.FareBreakdown;
+import com.ridehailing.model.Location;
+import com.ridehailing.model.Ride;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PricingEngineTest {
@@ -103,5 +106,26 @@ class PricingEngineTest {
         FareBreakdown breakdown = pricingEngine.price(1.0, CarType.HATCHBACK, new PercentageDiscount(10, 100_000));
         assertEquals(500, breakdown.discount());
         assertEquals(4500, breakdown.total());
+    }
+
+    @Test
+    void aRideRequestedAsHatchbackIsPricedAtHatchbackRatesEvenWhenAssignedASedan() {
+        // PricingEngine only ever sees a CarType, not a Ride - the call site (RideService)
+        // is what must pass getRequestedCarType() rather than getAssignedCarType(). This
+        // builds a Ride with the two deliberately different, prices it exactly the way
+        // RideService.endRide does, and proves the result matches a pure HATCHBACK price
+        // (not the SEDAN price for the same distance) - decision #5, tested at the pricing
+        // level rather than only through the RideService integration test.
+        Ride ride = new Ride("r1", "u1", "d1", CarType.HATCHBACK, CarType.SEDAN,
+                new Location(0, 0), new Location(7, 0));
+        double distanceKm = ride.getPickupLocation().distanceTo(ride.getDropLocation());
+
+        FareBreakdown actual = pricingEngine.price(distanceKm, ride.getRequestedCarType(), ride.getAppliedDiscount());
+        FareBreakdown pureHatchback = pricingEngine.price(7.0, CarType.HATCHBACK, null);
+        FareBreakdown pureSedan = pricingEngine.price(7.0, CarType.SEDAN, null);
+
+        assertEquals(CarType.HATCHBACK, actual.pricedAsCarType());
+        assertEquals(pureHatchback.total(), actual.total());
+        assertNotEquals(pureSedan.total(), actual.total());
     }
 }
