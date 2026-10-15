@@ -11,6 +11,7 @@ public class HelpCommand implements Command {
         System.out.println("  delete_coupon <code>");
         System.out.println("  book_ride <rideId> <userId> <SEDAN|HATCHBACK> <px> <py> <dx> <dy> [couponCode]");
         System.out.println("  end_ride <rideId>");
+        System.out.println("  cancel_ride <rideId>");
         System.out.println("  user_history <userId>");
         System.out.println("  driver_history <driverId>");
         System.out.println("  help");

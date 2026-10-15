@@ -1,5 +1,7 @@
 package com.ridehailing.cli;
 
+import com.ridehailing.cancellation.CancellationFeePolicy;
+import com.ridehailing.cancellation.TimeBasedCancellationPolicy;
 import com.ridehailing.discount.DiscountStrategyFactory;
 import com.ridehailing.matching.DriverMatchingStrategy;
 import com.ridehailing.matching.HighestRatedStrategy;
@@ -25,6 +27,7 @@ import com.ridehailing.surge.SurgeStrategy;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.time.Clock;
 import java.util.Arrays;
 
 /**
@@ -61,8 +64,11 @@ public class Main {
         SurgeStrategy surgeStrategy = "demand".equals(surgeChoice)
                 ? new DemandSupplySurge(driverRepository, rideRepository, DEFAULT_RADIUS_KM)
                 : new NoSurge();
+        CancellationFeePolicy cancellationFeePolicy = new TimeBasedCancellationPolicy();
+        Clock clock = Clock.systemDefaultZone();
         RideService rideService = new RideService(userRepository, driverRepository, rideRepository,
-                couponService, pricingEngine, matchingStrategy, surgeStrategy, DEFAULT_RADIUS_KM);
+                couponService, pricingEngine, matchingStrategy, surgeStrategy, cancellationFeePolicy,
+                clock, DEFAULT_RADIUS_KM);
 
         CommandRegistry registry = new CommandRegistry();
         registry.register("add_user", new AddUserCommand(userService));
@@ -72,6 +78,7 @@ public class Main {
         registry.register("delete_coupon", new DeleteCouponCommand(couponService));
         registry.register("book_ride", new BookRideCommand(rideService));
         registry.register("end_ride", new EndRideCommand(rideService));
+        registry.register("cancel_ride", new CancelRideCommand(rideService));
         registry.register("user_history", new UserHistoryCommand(rideService));
         registry.register("driver_history", new DriverHistoryCommand(rideService));
         registry.register("help", new HelpCommand());

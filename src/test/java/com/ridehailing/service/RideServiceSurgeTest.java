@@ -1,5 +1,6 @@
 package com.ridehailing.service;
 
+import com.ridehailing.cancellation.TimeBasedCancellationPolicy;
 import com.ridehailing.matching.NearestDriverStrategy;
 import com.ridehailing.model.CarType;
 import com.ridehailing.model.FareBreakdown;
@@ -17,6 +18,8 @@ import com.ridehailing.repo.UserRepository;
 import com.ridehailing.surge.DemandSupplySurge;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.time.Clock;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -46,7 +49,8 @@ class RideServiceSurgeTest {
         DemandSupplySurge surgeStrategy = new DemandSupplySurge(driverRepository, rideRepository, RADIUS_KM);
 
         rideService = new RideService(userRepository, driverRepository, rideRepository, couponService,
-                pricingEngine, new NearestDriverStrategy(), surgeStrategy, RADIUS_KM);
+                pricingEngine, new NearestDriverStrategy(), surgeStrategy,
+                new TimeBasedCancellationPolicy(), Clock.systemUTC(), RADIUS_KM);
 
         userService.registerUser("u1", "Alice");
         userService.registerUser("u2", "Bob");

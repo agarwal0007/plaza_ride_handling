@@ -27,10 +27,21 @@ public class DriverHistoryCommand implements Command {
         for (Ride ride : history.getOrDefault(RideStatus.COMPLETED, List.of())) {
             System.out.println("  " + describe(ride));
         }
+        System.out.println("CANCELLED:");
+        for (Ride ride : history.getOrDefault(RideStatus.CANCELLED, List.of())) {
+            System.out.println("  " + describe(ride));
+        }
     }
 
     private String describe(Ride ride) {
-        String fare = ride.getFareBreakdown() == null ? "" : ", fare " + Money.format(ride.getFareBreakdown().total());
-        return ride.getRideId() + " (" + ride.getRequestedCarType() + " -> " + ride.getAssignedCarType() + ")" + fare;
+        String outcome;
+        if (ride.getFareBreakdown() != null) {
+            outcome = ", fare " + Money.format(ride.getFareBreakdown().total());
+        } else if (ride.getStatus() == RideStatus.CANCELLED) {
+            outcome = ", cancellation fee " + Money.format(ride.getCancellationFeePaise());
+        } else {
+            outcome = "";
+        }
+        return ride.getRideId() + " (" + ride.getRequestedCarType() + " -> " + ride.getAssignedCarType() + ")" + outcome;
     }
 }

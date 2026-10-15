@@ -1,5 +1,6 @@
 package com.ridehailing.service;
 
+import com.ridehailing.cancellation.TimeBasedCancellationPolicy;
 import com.ridehailing.exception.DomainException;
 import com.ridehailing.matching.NearestDriverStrategy;
 import com.ridehailing.model.CarType;
@@ -13,6 +14,7 @@ import com.ridehailing.repo.InMemoryUserRepository;
 import com.ridehailing.surge.NoSurge;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -36,7 +38,7 @@ class RideServiceConcurrencyTest {
         CouponService couponService = new CouponService(new InMemoryCouponRepository());
         RideService rideService = new RideService(userRepository, driverRepository, rideRepository,
                 couponService, new PricingEngine(new RateCardProvider()), new NearestDriverStrategy(),
-                new NoSurge(), 5.0);
+                new NoSurge(), new TimeBasedCancellationPolicy(), Clock.systemUTC(), 5.0);
 
         userService.registerUser("u1", "Alice");
         userService.registerUser("u2", "Bob");

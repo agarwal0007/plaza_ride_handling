@@ -19,10 +19,12 @@ import com.ridehailing.repo.InMemoryRideRepository;
 import com.ridehailing.repo.InMemoryUserRepository;
 import com.ridehailing.repo.RideRepository;
 import com.ridehailing.repo.UserRepository;
+import com.ridehailing.cancellation.TimeBasedCancellationPolicy;
 import com.ridehailing.surge.NoSurge;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 
@@ -55,7 +57,8 @@ class RideServiceTest {
         NearestDriverStrategy matchingStrategy = new NearestDriverStrategy();
 
         rideService = new RideService(userRepository, driverRepository, rideRepository,
-                couponService, pricingEngine, matchingStrategy, new NoSurge(), RADIUS_KM);
+                couponService, pricingEngine, matchingStrategy, new NoSurge(),
+                new TimeBasedCancellationPolicy(), Clock.systemUTC(), RADIUS_KM);
 
         userService.registerUser("u1", "Alice");
     }

@@ -136,6 +136,36 @@ they come up in later phases.)
   either file changed, and both still pass with their original expected values,
   since `NoSurge` is a true no-op (10000 bps = 1.0x, always).
 
+**From Phase 12 (cancellation):**
+- `RideService` now reads "now" exclusively through an injected `java.time.Clock` -
+  never `Instant.now()` directly - the same reasoning as injecting `SurgeStrategy`:
+  a composition root should be explicit about every source of non-determinism, and
+  tests need to control time precisely to hit an exact grace-period boundary.
+  `Ride`'s pre-cancellation constructors (the 7-arg and 8-arg ones from before this
+  phase) still default `bookedAt` to `Instant.now()` internally, since they exist only
+  for old call sites that don't exercise cancellation and don't care what the value
+  is - `RideService` itself always calls the full constructor with `clock.instant()`.
+- "Within" the grace period is inclusive of its own boundary: cancelling at exactly
+  the grace-period mark is free, only strictly after it costs the fee. This is what
+  the required "at exactly 2:00 -> free" test case implies.
+- `CancellationFeePolicy.feePaise(ride, cancelledAt)` is computed independently of
+  `PricingEngine` entirely - it never touches tiered fares, the minimum-fare floor,
+  surge, or coupons, because the decision is explicit that none of those apply to a
+  cancellation fee.
+- `RideService`'s constructor gained two more required parameters
+  (`CancellationFeePolicy`, `Clock`) for the same reason `SurgeStrategy` did last
+  phase: no silent default makes sense in a composition root. This needed the same
+  kind of one-line, non-behavioural addition to the existing test setup code in
+  `RideServiceTest`, `RideServiceConcurrencyTest`, and `RideServiceSurgeTest` (passing
+  `new TimeBasedCancellationPolicy()` and a `Clock` alongside the already-present
+  strategies) - no assertion in any of those three files changed.
+- `java.time.Clock` has no built-in mutable implementation (`Clock.fixed` is a frozen
+  snapshot), so testing three different elapsed-time scenarios against one booked
+  ride needed a small test-only `MutableClock` (a `Clock` subclass whose `instant()`
+  can be advanced between a booking and a cancellation call). It lives inside
+  `RideServiceCancellationTest` rather than as a shared utility, since nothing else
+  needs it.
+
 ## Design & trade-offs
 
 **Where the seams are, and why.** Three interfaces exist specifically so a whole

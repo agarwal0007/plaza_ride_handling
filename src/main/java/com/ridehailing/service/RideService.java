@@ -1,5 +1,6 @@
 package com.ridehailing.service;
 
+import com.ridehailing.cancellation.CancellationFeePolicy;
 import com.ridehailing.exception.DomainException;
 import com.ridehailing.matching.DriverMatchingStrategy;
 import com.ridehailing.model.CarType;
@@ -14,6 +15,8 @@ import com.ridehailing.repo.DriverRepository;
 import com.ridehailing.repo.RideRepository;
 import com.ridehailing.repo.UserRepository;
 import com.ridehailing.surge.SurgeStrategy;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -21,13 +24,15 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Books and ends rides. Deliberately has no pricing math, driver-selection, or surge
- * logic of its own - it delegates those to PricingEngine, DriverMatchingStrategy, and
- * SurgeStrategy, all injected via the constructor. The one business rule it does own
- * is walking the upgrade chain (decision #10: that's a pricing/business decision, not
- * a matching concern) - try the requested car type, then whatever CarType.upgradeTo()
- * says to try next, and so on, until a driver is claimed or the chain runs out. This
- * class has no idea HATCHBACK or SEDAN exist; that mapping lives entirely on CarType.
+ * Books, ends, and cancels rides. Deliberately has no pricing math, driver-selection,
+ * surge, or cancellation-fee logic of its own - it delegates those to PricingEngine,
+ * DriverMatchingStrategy, SurgeStrategy, and CancellationFeePolicy, all injected via
+ * the constructor, and reads "now" only through its injected Clock, never the system
+ * clock directly. The one business rule it does own is walking the upgrade chain
+ * (decision #10: that's a pricing/business decision, not a matching concern) - try
+ * the requested car type, then whatever CarType.upgradeTo() says to try next, and so
+ * on, until a driver is claimed or the chain runs out. This class has no idea
+ * HATCHBACK or SEDAN exist; that mapping lives entirely on CarType.
  */
 public class RideService {
     private final UserRepository userRepository;
@@ -37,6 +42,8 @@ public class RideService {
     private final PricingEngine pricingEngine;
     private final DriverMatchingStrategy matchingStrategy;
     private final SurgeStrategy surgeStrategy;
+    private final CancellationFeePolicy cancellationFeePolicy;
+    private final Clock clock;
     private final double radiusKm;
 
     public RideService(UserRepository userRepository,
@@ -46,6 +53,8 @@ public class RideService {
                         PricingEngine pricingEngine,
                         DriverMatchingStrategy matchingStrategy,
                         SurgeStrategy surgeStrategy,
+                        CancellationFeePolicy cancellationFeePolicy,
+                        Clock clock,
                         double radiusKm) {
         this.userRepository = userRepository;
         this.driverRepository = driverRepository;
@@ -54,6 +63,8 @@ public class RideService {
         this.pricingEngine = pricingEngine;
         this.matchingStrategy = matchingStrategy;
         this.surgeStrategy = surgeStrategy;
+        this.cancellationFeePolicy = cancellationFeePolicy;
+        this.clock = clock;
         this.radiusKm = radiusKm;
     }
 
@@ -109,7 +120,7 @@ public class RideService {
         }
 
         Ride ride = new Ride(rideId, userId, assignedDriver.getDriverId(), requestedCarType,
-                assignedCarType, pickupLocation, dropLocation, surgeBps);
+                assignedCarType, pickupLocation, dropLocation, surgeBps, clock.instant());
         if (coupon != null) {
             ride.lockCoupon(coupon.getCode(), coupon.getDiscountStrategy());
         }
@@ -133,6 +144,28 @@ public class RideService {
         driver.getCab().setLocation(ride.getDropLocation());
 
         return fareBreakdown;
+    }
+
+    /**
+     * Cancels an ONGOING ride (anything else throws). The driver goes back to
+     * AVAILABLE; the cab's location is left exactly where it was, since the ride
+     * never actually started. Coupons and surge never apply to the cancellation fee -
+     * it's computed independently by CancellationFeePolicy and stored on the Ride.
+     */
+    public long cancelRide(String rideId) {
+        Ride ride = rideRepository.findById(rideId)
+                .orElseThrow(() -> new DomainException("No ride found with id: " + rideId));
+
+        Instant cancelledAt = clock.instant();
+        long feePaise = cancellationFeePolicy.feePaise(ride, cancelledAt);
+
+        ride.cancel(feePaise); // throws if not ONGOING
+
+        Driver driver = driverRepository.findById(ride.getDriverId())
+                .orElseThrow(() -> new DomainException("No driver found with id: " + ride.getDriverId()));
+        driver.release();
+
+        return feePaise;
     }
 
     public Map<RideStatus, List<Ride>> getUserHistory(String userId) {
