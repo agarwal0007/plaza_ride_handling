@@ -67,14 +67,65 @@ book_ride r6 u1 HATCHBACK 400 400 407 400 CAPPED
 end_ride r6
 
 # ===================================================================
-# Scenario 8: histories - one ride is deliberately left ONGOING so
-# both history buckets have something to show
+# Scenario 8: free cancellation - cancelling right after booking is
+# well inside the 2-minute default grace period, so there's no fee
 # ===================================================================
+add_user u3 Ivy
 add_driver d6 Henry SEDAN KA06KL6666 500 500
-book_ride r7 u2 SEDAN 500 500 505 500
+book_ride r7 u3 SEDAN 500 500 505 500
+cancel_ride r7
 
+# ===================================================================
+# Scenario 9: paid cancellation - this can't be demonstrated live in
+# a one-shot script, because cancellation timing comes from the real
+# system clock (java.time.Clock.systemDefaultZone() in Main), and
+# this script runs in well under 2 minutes. To see the Rs 25 fee:
+#   book_ride r8 u3 SEDAN 500 500 505 500   (after cancelling r7 above)
+#   (wait more than 2 real minutes)
+#   cancel_ride r8                           -> "Fee: Rs 25.00"
+# RideServiceCancellationTest covers this deterministically instead,
+# using a test-only MutableClock that can jump time forward instantly.
+# ===================================================================
+
+# ===================================================================
+# Scenario 10: surge pricing - two pre-existing ongoing rides at this
+# pickup make demand = 2; only one SEDAN driver is free there, so
+# supply = 1 and ratio = demand / supply = 2 -> the 1.5x high band.
+# Under the DEFAULT run (no -Dsurge flag) surge is off, so this books
+# and ends with no surge adjustment either way. Re-run this same file
+# with -Dsurge=demand to see "(Surge: 1.50x)" on the booking line and
+# a non-zero surge adjustment on the fare breakdown:
+#   mvn -q compile exec:java -Dsurge=demand < demo.txt
+# ===================================================================
+add_user u4 Jack
+add_user u5 Karen
+add_user u6 Leo
+add_driver surgeBusy1 Mona SEDAN KA07MN7777 600 600
+add_driver surgeBusy2 Nora SEDAN KA08NO8888 600 600
+book_ride busyA u4 SEDAN 600 600 601 600
+book_ride busyB u5 SEDAN 600 600 601 600
+add_driver surgeFree Oscar SEDAN KA09OP9999 600 600
+book_ride r8 u6 SEDAN 600 600 607 600
+end_ride r8
+
+# ===================================================================
+# Scenario 11: rated matching - -Dmatching is a startup flag too, so
+# it can't be toggled mid-script either. To see it change which
+# driver gets picked, run this separately:
+#   printf 'add_user ur Pat\nadd_driver close C SEDAN KA10 1 0 3.0\nadd_driver far F SEDAN KA11 4 0 4.9\nbook_ride rr ur SEDAN 0 0 1 1\nexit\n' \
+#     | mvn -q compile exec:java
+#   (books "close" - nearer, lower rated, the default -Dmatching=nearest)
+#   printf 'add_user ur Pat\nadd_driver close C SEDAN KA10 1 0 3.0\nadd_driver far F SEDAN KA11 4 0 4.9\nbook_ride rr ur SEDAN 0 0 1 1\nexit\n' \
+#     | mvn -q compile exec:java -Dmatching=rated
+#   (books "far" instead - farther away, but its 4.9 rating beats close's 3.0)
+# ===================================================================
+
+# ===================================================================
+# Scenario 12: histories - now covering a completed ride, an ongoing
+# one, and a cancelled one, for both a user and a driver
+# ===================================================================
 user_history u1
-user_history u2
+user_history u3
 driver_history d1
 driver_history d6
 

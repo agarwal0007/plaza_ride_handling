@@ -184,11 +184,24 @@ category of future change is a new class, not a rewrite:
   `DriverMatchingStrategy` it gets and has no idea a choice was even made.
 - `DiscountStrategy` is the only thing that knows how a coupon's discount is computed.
   Everything else - `Coupon`, `PricingEngine`, `Ride` - just holds or calls one.
+- `SurgeStrategy` is the only thing that knows whether, and how much, a ride should
+  surge. `RideService` asks it for a multiplier (in bps) for a pickup and car type,
+  before claiming any driver, and locks whatever it returns onto the `Ride` it
+  creates - it has no idea "demand" or "supply" are concepts. Two implementations
+  exist (`NoSurge`, `DemandSupplySurge`), and `Main` picks between them at startup
+  from `-Dsurge=none|demand` (default `none`) - the same switch-only-touches-`Main`
+  pattern as matching strategies, one paragraph up.
+- `CancellationFeePolicy` is the only thing that knows what a cancellation costs.
+  `RideService.cancelRide` asks it for a fee given the `Ride` and the cancellation
+  instant, and stores whatever it returns - it has no idea "grace period" means
+  anything. `TimeBasedCancellationPolicy` is the one implementation today; a
+  distance-based or per-car-type policy would be a second class, wired in `Main`.
 
-The point of all three is the same: `RideService` is a *coordinator*. It decides
-*when* to price a ride, match a driver, or apply a discount, and in what order, but
-never *how*. That split is what makes the "what I'd do with more time" list below
-mostly additive - a new strategy or a new rate, not a change to `RideService` itself.
+The point of all this is the same: `RideService` is a *coordinator*. It decides
+*when* to price a ride, match a driver, apply a discount, surge, or charge a
+cancellation fee, and in what order, but never *how*. That split is what makes the
+"what I'd do with more time" list below mostly additive - a new strategy or a new
+rate, not a change to `RideService` itself.
 
 **Car types, and the upgrade path between them, are data - not RideService logic.**
 `CarType.upgradeTo()` returns the next car type to try (HATCHBACK -> SEDAN; SEDAN ->
@@ -227,25 +240,30 @@ pickup/drop points - deleting the coupon later is bookkeeping, not a price chang
 
 ## What I'd do with more time
 
-- **Surge pricing**, as an extra multiplier step in `PricingEngine` between the
-  tiered-fare calculation and the minimum-fare floor - it composes with the existing
-  "tiered fare -> floor -> discount" pipeline rather than replacing any of it.
-- **`HighestRatedStrategy`**, a second `DriverMatchingStrategy` that ranks candidates
-  by driver rating instead of distance - this would need a rating field on `Driver`
-  that doesn't exist yet.
-- **Cancellation fees** - a ride state between "booked" and "ongoing" that can be
-  cancelled for a small charge, instead of today's model where a ride is ongoing from
-  the moment a driver is claimed.
 - **Haversine distance** instead of Euclidean, once locations are real latitude and
   longitude rather than an abstract grid - `Location.distanceTo` is the only method
   that would need to change.
 - **A spatial index** (e.g. a grid or a k-d tree) instead of `NearestDriverStrategy`
-  scanning every driver on every booking. Fine at this scale; wouldn't be at
-  city-wide driver counts.
+  and `HighestRatedStrategy` each scanning every driver on every booking, and
+  `DemandSupplySurge` doing the same for drivers and ongoing rides. Fine at this
+  scale; wouldn't be at city-wide driver and ride counts.
 - **Persistence** - swap the `InMemory*Repository` implementations for ones backed by
   a real database. Every service depends on the repository *interfaces*, never the
   in-memory classes directly, so this is the one item here that's already fully
   prepared for by the existing seams rather than needing a new one.
+- **Coupon expiry and usage limits** - a coupon that's valid only until a date, or
+  only for the first N rides. `CouponService.validate` is the one place that would
+  need to check it; `Coupon` would need an expiry/limit field alongside its
+  `DiscountStrategy`.
+- **Idempotent booking requests** - if `book_ride` is retried with the same `rideId`
+  after a network blip, today it would fail with "ride already has an ongoing ride"
+  or similar rather than returning the original booking. Worth a request-id ->
+  outcome cache in front of `RideService.book`.
+- **Surge computed over a time window** rather than an instant snapshot - averaging
+  demand/supply over, say, the last 5 minutes instead of reading it at the exact
+  moment of booking, so one ride ending or starting doesn't swing the multiplier on
+  its own. `DemandSupplySurge` would need access to a short rolling history instead
+  of just the current repository state.
 
 ## How I used AI
 
