@@ -5,7 +5,15 @@ phases; see git log for the order.
 
 ## How to run
 
-(Added in Phase 5, once the CLI exists.)
+```bash
+mvn test                              # run the test suite
+mvn -q compile exec:java              # start the interactive CLI (reads stdin)
+mvn -q compile exec:java < demo.txt   # run the scripted demo (see below)
+```
+
+Once running, type `help` for the full command list, or `exit` to quit. Blank lines
+and lines starting with `#` are ignored, which is what lets `demo.txt` be both a
+runnable script and a commented walkthrough at the same time.
 
 ## Assumptions
 
@@ -67,6 +75,19 @@ they come up in later phases.)
 - If booking fails for any reason (no driver found, invalid coupon), no `Ride` is ever
   created - it's as if the booking never happened, which is also why a failed booking
   attempt never shows up in anyone's ride history.
+
+**From Phase 5 (CLI):**
+- `add_coupon` only accepts the literal type `PERCENT`. The discount design supports
+  other types being added later (decision #7), but none beyond percentage was asked
+  for, so none beyond `PercentageDiscount` was built.
+- The REPL's single catch block around a command's execution catches any
+  `RuntimeException`, not just `DomainException`. That one broader catch is what makes
+  "never crash on bad input" and "print `ERROR: <message>` for a domain violation"
+  the same mechanism - a malformed number or a missing argument fails the exact same
+  way a real rule violation does, instead of needing hand-written validation repeated
+  in every command.
+- The matching radius (5 units) is fixed once, in `Main`, when everything is wired
+  together. There's no command to change it at runtime, since none was specified.
 
 ## Design & trade-offs
 

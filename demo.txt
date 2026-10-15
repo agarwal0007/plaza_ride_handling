@@ -1,0 +1,74 @@
+# ===================================================================
+# Ride Hailing CLI demo
+# Run with: mvn -q compile exec:java < demo.txt
+# ===================================================================
+
+# --- Setup: two riders ---
+add_user u1 Alice
+add_user u2 Bob
+
+# ===================================================================
+# Scenario 1: happy path - a hatchback is booked and the ride ends
+# with exactly the tiered fare worked out in the spec:
+# 7km hatchback = 20 + 24 + 10 = Rs 54
+# ===================================================================
+add_driver d1 Carl HATCHBACK KA01AB1111 0 0
+book_ride r1 u1 HATCHBACK 0 0 7 0
+end_ride r1
+
+# ===================================================================
+# Scenario 2: minimum fare - a 1km hatchback ride's tiered fare
+# (Rs 10) is below the Rs 50 minimum, so the floor wins
+# ===================================================================
+add_driver d2 Diana HATCHBACK KA02CD2222 100 100
+book_ride r2 u2 HATCHBACK 100 100 101 100
+end_ride r2
+
+# ===================================================================
+# Scenario 3: hatchback -> sedan free upgrade - no hatchback is
+# within radius of this pickup, only a sedan is, so the sedan gets
+# assigned but the rider is still billed at hatchback rates (same
+# Rs 54 as scenario 1, for the same 7km distance)
+# ===================================================================
+add_driver d3 Evan SEDAN KA03EF3333 200 200
+book_ride r3 u1 HATCHBACK 200 200 207 200
+end_ride r3
+
+# ===================================================================
+# Scenario 4: no driver in radius - the only driver here is 50 units
+# away, far outside the default 5-unit radius, so booking fails
+# ===================================================================
+add_driver d4 Frank SEDAN KA04GH4444 300 300
+book_ride r4 u2 SEDAN 300 350 301 350
+
+# ===================================================================
+# Scenario 5: invalid coupon - a driver (d4, still available since
+# scenario 4 failed) is right at this pickup, but booking with an
+# unknown coupon code fails outright, releasing that driver again
+# ===================================================================
+book_ride r5 u2 SEDAN 300 300 301 300 NOPE
+
+# ===================================================================
+# Scenario 6: coupon with a cap - a 50% coupon on a Rs 54 fare would
+# be Rs 27, but this coupon is capped at Rs 10, so only Rs 10 is
+# actually discounted
+# ===================================================================
+add_coupon CAPPED PERCENT 50 10
+add_driver d5 Grace HATCHBACK KA05IJ5555 400 400
+book_ride r6 u1 HATCHBACK 400 400 407 400 CAPPED
+end_ride r6
+
+# ===================================================================
+# Scenario 7: histories - one ride is deliberately left ONGOING so
+# both history buckets have something to show
+# ===================================================================
+add_driver d6 Henry SEDAN KA06KL6666 500 500
+book_ride r7 u2 SEDAN 500 500 505 500
+
+user_history u1
+user_history u2
+driver_history d1
+driver_history d6
+
+help
+exit
