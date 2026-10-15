@@ -60,6 +60,14 @@ so it's clear what the code is doing and why, without re-deriving it from the di
 (More assumptions - things not covered by the twelve decisions above - get added here as
 they come up in later phases.)
 
+**From Phase 3 (services):**
+- Re-registering a user or driver under an id that's already taken simply overwrites
+  the old record - there's no "id already exists" error.
+- Deleting a coupon code that doesn't exist is a no-op, not an error.
+- If booking fails for any reason (no driver found, invalid coupon), no `Ride` is ever
+  created - it's as if the booking never happened, which is also why a failed booking
+  attempt never shows up in anyone's ride history.
+
 ## Design & trade-offs
 
 (Added in Phase 6.)

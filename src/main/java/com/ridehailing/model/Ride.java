@@ -1,5 +1,6 @@
 package com.ridehailing.model;
 
+import com.ridehailing.discount.DiscountStrategy;
 import com.ridehailing.exception.DomainException;
 
 /**
@@ -17,6 +18,8 @@ public class Ride {
     private final Location dropLocation;
     private RideStatus status;
     private FareBreakdown fareBreakdown;
+    private String appliedCouponCode;
+    private DiscountStrategy appliedDiscount;
 
     public Ride(String rideId, String userId, String driverId, CarType requestedCarType,
                 CarType assignedCarType, Location pickupLocation, Location dropLocation) {
@@ -64,6 +67,24 @@ public class Ride {
 
     public FareBreakdown getFareBreakdown() {
         return fareBreakdown;
+    }
+
+    public String getAppliedCouponCode() {
+        return appliedCouponCode;
+    }
+
+    public DiscountStrategy getAppliedDiscount() {
+        return appliedDiscount;
+    }
+
+    /**
+     * Locks a validated coupon onto this ride at booking time (decision #6), storing
+     * the discount logic itself - not just the code - so a later coupon deletion has
+     * no effect on this ride.
+     */
+    public void lockCoupon(String couponCode, DiscountStrategy discount) {
+        this.appliedCouponCode = couponCode;
+        this.appliedDiscount = discount;
     }
 
     /**
