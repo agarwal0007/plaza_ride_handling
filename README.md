@@ -109,6 +109,15 @@ The point of all three is the same: `RideService` is a *coordinator*. It decides
 never *how*. That split is what makes the "what I'd do with more time" list below
 mostly additive - a new strategy or a new rate, not a change to `RideService` itself.
 
+**Car types, and the upgrade path between them, are data - not RideService logic.**
+`CarType.upgradeTo()` returns the next car type to try (HATCHBACK -> SEDAN; SEDAN ->
+nothing). `RideService.book` just walks that chain - requested type, then
+`upgradeTo()`, then `upgradeTo()` again, until a driver is claimed or the chain runs
+out - without ever naming HATCHBACK or SEDAN itself. **Adding a new car type is a
+two-file change: a new `CarType` constant (with its `upgradeTo()`, if it should fall
+back to something) and a new entry in `RateCardProvider`.** `RideService`,
+`DriverMatchingStrategy`, and the CLI don't change at all.
+
 **Why Euclidean distance.** It's the simplest honest distance between two grid points,
 and the spec frames locations as `(x, y)` coordinates, not addresses on a road
 network. A real product would need actual road distance (see below), but that's a

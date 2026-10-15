@@ -13,16 +13,20 @@ import com.ridehailing.pricing.PricingEngine;
 import com.ridehailing.repo.DriverRepository;
 import com.ridehailing.repo.RideRepository;
 import com.ridehailing.repo.UserRepository;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
  * Books and ends rides. Deliberately has no pricing math and no driver-selection
  * logic of its own - it delegates those to PricingEngine and DriverMatchingStrategy,
- * both injected via the constructor. The one business rule it does own is the
- * HATCHBACK -> SEDAN fallback (decision #10: that's a pricing/business decision, not
- * a matching concern).
+ * both injected via the constructor. The one business rule it does own is walking the
+ * upgrade chain (decision #10: that's a pricing/business decision, not a matching
+ * concern) - try the requested car type, then whatever CarType.upgradeTo() says to
+ * try next, and so on, until a driver is claimed or the chain runs out. This class
+ * has no idea HATCHBACK or SEDAN exist; that mapping lives entirely on CarType.
  */
 public class RideService {
     private final UserRepository userRepository;
@@ -135,11 +139,15 @@ public class RideService {
         return rides.stream().collect(Collectors.groupingBy(Ride::getStatus));
     }
 
-    /** Requested type first; HATCHBACK also falls back to SEDAN (decision #10). */
+    /** Requested type first, then each successive CarType.upgradeTo() (decision #10). */
     private List<CarType> carTypesToTry(CarType requestedCarType) {
-        if (requestedCarType == CarType.HATCHBACK) {
-            return List.of(CarType.HATCHBACK, CarType.SEDAN);
+        List<CarType> chain = new ArrayList<>();
+        Optional<CarType> current = Optional.of(requestedCarType);
+        while (current.isPresent()) {
+            CarType carType = current.get();
+            chain.add(carType);
+            current = carType.upgradeTo();
         }
-        return List.of(requestedCarType);
+        return chain;
     }
 }
