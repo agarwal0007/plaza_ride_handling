@@ -18,6 +18,9 @@ import com.ridehailing.service.CouponService;
 import com.ridehailing.service.DriverService;
 import com.ridehailing.service.RideService;
 import com.ridehailing.service.UserService;
+import com.ridehailing.surge.DemandSupplySurge;
+import com.ridehailing.surge.NoSurge;
+import com.ridehailing.surge.SurgeStrategy;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -35,8 +38,10 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
         DriverMatchingStrategy matchingStrategy;
+        String surgeChoice;
         try {
             matchingStrategy = resolveMatchingStrategy();
+            surgeChoice = resolveSurgeChoice();
         } catch (IllegalArgumentException e) {
             System.err.println("ERROR: " + e.getMessage());
             System.exit(1);
@@ -53,8 +58,11 @@ public class Main {
         CouponService couponService = new CouponService(couponRepository);
         DiscountStrategyFactory discountStrategyFactory = new DiscountStrategyFactory();
         PricingEngine pricingEngine = new PricingEngine(new RateCardProvider());
+        SurgeStrategy surgeStrategy = "demand".equals(surgeChoice)
+                ? new DemandSupplySurge(driverRepository, rideRepository, DEFAULT_RADIUS_KM)
+                : new NoSurge();
         RideService rideService = new RideService(userRepository, driverRepository, rideRepository,
-                couponService, pricingEngine, matchingStrategy, DEFAULT_RADIUS_KM);
+                couponService, pricingEngine, matchingStrategy, surgeStrategy, DEFAULT_RADIUS_KM);
 
         CommandRegistry registry = new CommandRegistry();
         registry.register("add_user", new AddUserCommand(userService));
@@ -89,6 +97,21 @@ public class Main {
                 throw new IllegalArgumentException(
                         "Invalid -Dmatching value: '" + matching + "' (expected 'nearest' or 'rated')");
         }
+    }
+
+    /**
+     * Validates -Dsurge=none|demand (default none) and returns the raw choice. Just
+     * validation, not construction: DemandSupplySurge needs the driver/ride
+     * repositories, which don't exist yet at this point in startup - but an invalid
+     * value should still fail fast, before anything else is built.
+     */
+    private static String resolveSurgeChoice() {
+        String surge = System.getProperty("surge", "none").toLowerCase();
+        if (!surge.equals("none") && !surge.equals("demand")) {
+            throw new IllegalArgumentException(
+                    "Invalid -Dsurge value: '" + surge + "' (expected 'none' or 'demand')");
+        }
+        return surge;
     }
 
     private static void runRepl(CommandRegistry registry) throws IOException {

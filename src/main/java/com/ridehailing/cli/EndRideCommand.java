@@ -21,6 +21,7 @@ public class EndRideCommand implements Command {
         System.out.println("  Priced as:           " + fare.pricedAsCarType());
         System.out.println("  Tiered fare:         " + Money.format(fare.tieredFare()));
         System.out.println("  Minimum-fare top-up: " + Money.format(fare.minimumFareAdjustment()));
+        System.out.println("  Surge adjustment:    " + Money.format(fare.surgeAdjustment()));
         System.out.println("  Coupon discount:     -" + Money.format(fare.discount()));
         System.out.println("  Total:               " + Money.format(fare.total()));
     }

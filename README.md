@@ -101,6 +101,41 @@ they come up in later phases.)
   a runtime one: it's reported and the process exits before the REPL starts, rather
   than silently falling back to `nearest`.
 
+**From Phase 11 (surge pricing):**
+- `SurgeStrategy.multiplierBps(pickup, type)` takes no repository or collection
+  parameters, unlike `DriverMatchingStrategy.findCandidates`. That's the given
+  interface shape, and it means an implementation that needs driver/ride data (like
+  `DemandSupplySurge`) holds its own repository references via its constructor,
+  rather than being handed a pre-fetched collection by `RideService` the way matching
+  strategies are.
+- Supply and demand are scoped to the *same* booking radius `RideService` already
+  uses, passed into `DemandSupplySurge`'s constructor - not a second, independently
+  configured radius.
+- `ratio = demand / max(supply, 1)` - the `max(supply, 1)` only prevents a
+  divide-by-zero; it does not mean "zero supply is treated as one driver" for any
+  other purpose. With zero actual supply and any demand at all, the ratio still lands
+  in the highest band that demand alone qualifies for.
+- Surge is computed once, at booking, for the *requested* car type - before any
+  driver is claimed, so the driver this booking is about to claim doesn't skew its
+  own supply count. The resulting multiplier is locked onto the `Ride` and never
+  recomputed, the same pattern decision #6 already uses for coupons: the rider agreed
+  to that price (multiplier included) the moment they booked.
+- The `amount * bps / 10000` rounding is pure `long` arithmetic (multiply, then
+  integer-divide, then round the remainder half-up by comparing `remainder * 2` to
+  `10000`) - no `double` appears anywhere in the surge math, matching the "no doubles
+  for money" rule even though a fractional multiplier is involved.
+- `PricingEngine.price(...)` and `Ride`'s constructor both kept their pre-surge
+  signatures as overloads (defaulting to no surge / 10000 bps) rather than requiring
+  every caller to pass a multiplier. This is why none of `PricingEngineTest`'s
+  pre-existing calls needed to change.
+- `RideService`'s constructor gained a required `SurgeStrategy` parameter (there's no
+  sensible default to fall back to silently - a composition root should say
+  explicitly whether surge is on). That did require a one-line, non-behavioural
+  change to `RideServiceTest` and `RideServiceConcurrencyTest`'s setup code (adding
+  `new NoSurge()` to the existing `RideService` construction) - no assertion in
+  either file changed, and both still pass with their original expected values,
+  since `NoSurge` is a true no-op (10000 bps = 1.0x, always).
+
 ## Design & trade-offs
 
 **Where the seams are, and why.** Three interfaces exist specifically so a whole

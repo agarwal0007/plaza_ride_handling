@@ -6,9 +6,14 @@ import com.ridehailing.exception.DomainException;
 /**
  * A single ride: its request, its assignment, and (once ended) its fare.
  * Pricing always uses requestedCarType, never assignedCarType - that's how the
- * HATCHBACK-requested-but-SEDAN-assigned free upgrade works (decision #5).
+ * HATCHBACK-requested-but-SEDAN-assigned free upgrade works (decision #5). surgeBps
+ * is likewise locked in at booking and never recomputed - the rider agreed to that
+ * multiplier when they booked, so a later demand change doesn't change their fare.
  */
 public class Ride {
+    /** 10000 bps = 1.0x. The default for a ride booked before surge pricing existed, or under NoSurge. */
+    public static final int NO_SURGE_BPS = 10_000;
+
     private final String rideId;
     private final String userId;
     private final String driverId;
@@ -16,6 +21,7 @@ public class Ride {
     private final CarType assignedCarType;
     private final Location pickupLocation;
     private final Location dropLocation;
+    private final int surgeBps;
     private RideStatus status;
     private FareBreakdown fareBreakdown;
     private String appliedCouponCode;
@@ -23,6 +29,11 @@ public class Ride {
 
     public Ride(String rideId, String userId, String driverId, CarType requestedCarType,
                 CarType assignedCarType, Location pickupLocation, Location dropLocation) {
+        this(rideId, userId, driverId, requestedCarType, assignedCarType, pickupLocation, dropLocation, NO_SURGE_BPS);
+    }
+
+    public Ride(String rideId, String userId, String driverId, CarType requestedCarType,
+                CarType assignedCarType, Location pickupLocation, Location dropLocation, int surgeBps) {
         this.rideId = rideId;
         this.userId = userId;
         this.driverId = driverId;
@@ -30,6 +41,7 @@ public class Ride {
         this.assignedCarType = assignedCarType;
         this.pickupLocation = pickupLocation;
         this.dropLocation = dropLocation;
+        this.surgeBps = surgeBps;
         this.status = RideStatus.ONGOING;
     }
 
@@ -59,6 +71,11 @@ public class Ride {
 
     public Location getDropLocation() {
         return dropLocation;
+    }
+
+    /** Locked at booking time (the surge decision); never recomputed when the ride ends. */
+    public int getSurgeBps() {
+        return surgeBps;
     }
 
     public RideStatus getStatus() {

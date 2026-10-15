@@ -1,6 +1,7 @@
 package com.ridehailing.repo;
 
 import com.ridehailing.model.Ride;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,6 +19,11 @@ public class InMemoryRideRepository implements RideRepository {
     @Override
     public Optional<Ride> findById(String rideId) {
         return Optional.ofNullable(rides.get(rideId));
+    }
+
+    @Override
+    public List<Ride> findAll() {
+        return new ArrayList<>(rides.values());
     }
 
     @Override

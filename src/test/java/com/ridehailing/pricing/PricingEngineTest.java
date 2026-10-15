@@ -128,4 +128,27 @@ class PricingEngineTest {
         assertEquals(pureHatchback.total(), actual.total());
         assertNotEquals(pureSedan.total(), actual.total());
     }
+
+    @Test
+    void surgeAdjustmentRoundsHalfUpUsingLongArithmeticOnly() {
+        // 1km hatchback hits its minimum fare exactly: tieredFare 1000 + adjustment
+        // 4000 = 5000. A surge of 10001 bps (1.0001x) makes the surged amount exactly
+        // 5000.5 paise - that rounds half-up to 5001, not down to 5000.
+        FareBreakdown breakdown = pricingEngine.price(1.0, CarType.HATCHBACK, 10_001, null);
+        assertEquals(5000, breakdown.tieredFare() + breakdown.minimumFareAdjustment()); // sanity: base is 5000
+        assertEquals(1, breakdown.surgeAdjustment());
+        assertEquals(5001, breakdown.total());
+    }
+
+    @Test
+    void surgeIsAppliedBeforeTheCouponDiscountNotAfter() {
+        // 7km hatchback: afterMinimumFloor = 5400. At 1.25x surge, that's 6750. A 10%
+        // coupon capped at 600 binds against that POST-surge amount (10% of 6750 = 675
+        // > 600) but would NOT bind against the pre-surge amount (10% of 5400 = 540 <
+        // 600) - so which order ran is directly observable in the discount and total.
+        FareBreakdown breakdown = pricingEngine.price(7.0, CarType.HATCHBACK, 12_500, new PercentageDiscount(10, 600));
+        assertEquals(1350, breakdown.surgeAdjustment()); // 5400 * 0.25
+        assertEquals(600, breakdown.discount()); // capped - would be 540 if the coupon ran first
+        assertEquals(6150, breakdown.total());
+    }
 }

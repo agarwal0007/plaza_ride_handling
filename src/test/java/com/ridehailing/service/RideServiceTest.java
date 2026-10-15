@@ -19,6 +19,7 @@ import com.ridehailing.repo.InMemoryRideRepository;
 import com.ridehailing.repo.InMemoryUserRepository;
 import com.ridehailing.repo.RideRepository;
 import com.ridehailing.repo.UserRepository;
+import com.ridehailing.surge.NoSurge;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -54,7 +55,7 @@ class RideServiceTest {
         NearestDriverStrategy matchingStrategy = new NearestDriverStrategy();
 
         rideService = new RideService(userRepository, driverRepository, rideRepository,
-                couponService, pricingEngine, matchingStrategy, RADIUS_KM);
+                couponService, pricingEngine, matchingStrategy, new NoSurge(), RADIUS_KM);
 
         userService.registerUser("u1", "Alice");
     }

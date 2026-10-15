@@ -13,6 +13,7 @@ import com.ridehailing.pricing.PricingEngine;
 import com.ridehailing.repo.DriverRepository;
 import com.ridehailing.repo.RideRepository;
 import com.ridehailing.repo.UserRepository;
+import com.ridehailing.surge.SurgeStrategy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,13 +21,13 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Books and ends rides. Deliberately has no pricing math and no driver-selection
- * logic of its own - it delegates those to PricingEngine and DriverMatchingStrategy,
- * both injected via the constructor. The one business rule it does own is walking the
- * upgrade chain (decision #10: that's a pricing/business decision, not a matching
- * concern) - try the requested car type, then whatever CarType.upgradeTo() says to
- * try next, and so on, until a driver is claimed or the chain runs out. This class
- * has no idea HATCHBACK or SEDAN exist; that mapping lives entirely on CarType.
+ * Books and ends rides. Deliberately has no pricing math, driver-selection, or surge
+ * logic of its own - it delegates those to PricingEngine, DriverMatchingStrategy, and
+ * SurgeStrategy, all injected via the constructor. The one business rule it does own
+ * is walking the upgrade chain (decision #10: that's a pricing/business decision, not
+ * a matching concern) - try the requested car type, then whatever CarType.upgradeTo()
+ * says to try next, and so on, until a driver is claimed or the chain runs out. This
+ * class has no idea HATCHBACK or SEDAN exist; that mapping lives entirely on CarType.
  */
 public class RideService {
     private final UserRepository userRepository;
@@ -35,6 +36,7 @@ public class RideService {
     private final CouponService couponService;
     private final PricingEngine pricingEngine;
     private final DriverMatchingStrategy matchingStrategy;
+    private final SurgeStrategy surgeStrategy;
     private final double radiusKm;
 
     public RideService(UserRepository userRepository,
@@ -43,6 +45,7 @@ public class RideService {
                         CouponService couponService,
                         PricingEngine pricingEngine,
                         DriverMatchingStrategy matchingStrategy,
+                        SurgeStrategy surgeStrategy,
                         double radiusKm) {
         this.userRepository = userRepository;
         this.driverRepository = driverRepository;
@@ -50,6 +53,7 @@ public class RideService {
         this.couponService = couponService;
         this.pricingEngine = pricingEngine;
         this.matchingStrategy = matchingStrategy;
+        this.surgeStrategy = surgeStrategy;
         this.radiusKm = radiusKm;
     }
 
@@ -63,6 +67,10 @@ public class RideService {
         if (userHasOngoingRide) {
             throw new DomainException("User " + userId + " already has an ongoing ride.");
         }
+
+        // Computed before any driver is claimed, so the driver this booking is about
+        // to claim doesn't skew its own supply count (the surge decision).
+        int surgeBps = surgeStrategy.multiplierBps(pickupLocation, requestedCarType);
 
         Driver assignedDriver = null;
         CarType assignedCarType = null;
@@ -101,7 +109,7 @@ public class RideService {
         }
 
         Ride ride = new Ride(rideId, userId, assignedDriver.getDriverId(), requestedCarType,
-                assignedCarType, pickupLocation, dropLocation);
+                assignedCarType, pickupLocation, dropLocation, surgeBps);
         if (coupon != null) {
             ride.lockCoupon(coupon.getCode(), coupon.getDiscountStrategy());
         }
@@ -115,7 +123,7 @@ public class RideService {
 
         double distanceKm = ride.getPickupLocation().distanceTo(ride.getDropLocation());
         FareBreakdown fareBreakdown = pricingEngine.price(
-                distanceKm, ride.getRequestedCarType(), ride.getAppliedDiscount());
+                distanceKm, ride.getRequestedCarType(), ride.getSurgeBps(), ride.getAppliedDiscount());
 
         ride.complete(fareBreakdown); // throws if already ended (decision #12)
 

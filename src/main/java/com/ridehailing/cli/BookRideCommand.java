@@ -25,7 +25,9 @@ public class BookRideCommand implements Command {
         Ride ride = rideService.book(rideId, userId, requestedCarType, pickup, drop, couponCode);
 
         boolean upgraded = ride.getAssignedCarType() != ride.getRequestedCarType();
+        boolean surging = ride.getSurgeBps() != Ride.NO_SURGE_BPS;
+        String surgeNote = surging ? String.format(" (Surge: %.2fx)", ride.getSurgeBps() / 10_000.0) : "";
         System.out.println("Booked ride " + rideId + ": driver " + ride.getDriverId()
-                + ", car type " + ride.getAssignedCarType() + (upgraded ? " (free upgrade)" : ""));
+                + ", car type " + ride.getAssignedCarType() + (upgraded ? " (free upgrade)" : "") + surgeNote);
     }
 }

@@ -10,6 +10,7 @@ import com.ridehailing.repo.InMemoryCouponRepository;
 import com.ridehailing.repo.InMemoryDriverRepository;
 import com.ridehailing.repo.InMemoryRideRepository;
 import com.ridehailing.repo.InMemoryUserRepository;
+import com.ridehailing.surge.NoSurge;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -34,7 +35,8 @@ class RideServiceConcurrencyTest {
         DriverService driverService = new DriverService(driverRepository);
         CouponService couponService = new CouponService(new InMemoryCouponRepository());
         RideService rideService = new RideService(userRepository, driverRepository, rideRepository,
-                couponService, new PricingEngine(new RateCardProvider()), new NearestDriverStrategy(), 5.0);
+                couponService, new PricingEngine(new RateCardProvider()), new NearestDriverStrategy(),
+                new NoSurge(), 5.0);
 
         userService.registerUser("u1", "Alice");
         userService.registerUser("u2", "Bob");

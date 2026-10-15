@@ -9,6 +9,9 @@ public interface RideRepository {
 
     Optional<Ride> findById(String rideId);
 
+    /** Every ride ever created, any status - surge demand scans all of them by status/pickup. */
+    List<Ride> findAll();
+
     /** All rides for a user, both ongoing and completed - the service splits by status. */
     List<Ride> findByUserId(String userId);
 
